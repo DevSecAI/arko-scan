@@ -255,7 +255,8 @@ UPLOAD_PAYLOAD="$(jq -n \
   --arg project_name "$PROJECT_NAME" \
   --arg branch "$BRANCH" \
   --arg sha256 "$SHA256" \
-  '{filename: $filename, size_bytes: $size_bytes, project_name: $project_name, branch: $branch, sha256: $sha256}')"
+  --arg client "ci/github-actions" \
+  '{filename: $filename, size_bytes: $size_bytes, project_name: $project_name, branch: $branch, sha256: $sha256, client: $client}')"
 
 if ! api_request POST "/scan/build/upload-url" "$UPLOAD_PAYLOAD"; then
   die "could not reach ${API_BASE} (network error). Check api-base and the runner's egress."
