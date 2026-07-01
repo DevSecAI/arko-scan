@@ -52,6 +52,26 @@ MAX_UPLOAD_BYTES=5368709120   # 5 GB server-side cap on size_bytes
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+# Internal pipeline phase names are not customer vocabulary — map them to the
+# same labels the Arko console shows (unknown phases just get tidied).
+phase_label() {
+  case "$1" in
+    provisioning_worker) printf 'provisioning scanner' ;;
+    downloading_tar)     printf 'downloading artefact' ;;
+    extracting_zip)      printf 'extracting archive' ;;
+    cloning_repo)        printf 'fetching repository' ;;
+    running_trivy)       printf 'scanning for vulnerabilities' ;;
+    parsing_results)     printf 'parsing results' ;;
+    enriching_cves)      printf 'enriching with exploit intelligence' ;;
+    writing_findings)    printf 'saving findings' ;;
+    dispatched_to_sast)  printf 'deep code analysis' ;;
+    summarizing)         printf 'summarising the codebase' ;;
+    threat_modeling)     printf 'threat modelling' ;;
+    validation)          printf 'validating findings' ;;
+    *)                   printf '%s' "${1//_/ }" ;;
+  esac
+}
+
 console_link() { printf '%s/build-scans/%s' "$CONSOLE_BASE" "$SCAN_ID"; }
 
 write_outputs() {
@@ -327,7 +347,7 @@ while :; do
     SCAN_STATUS="$(jq -r '.status // empty' "$BODY_FILE" 2>/dev/null || true)"
     PHASE="$(jq -r '.current_phase // empty' "$BODY_FILE" 2>/dev/null || true)"
     if [[ -n "$PHASE" && "$PHASE" != "$LAST_PHASE" ]]; then
-      echo "  phase: ${PHASE} ($((NOW - START_EPOCH))s elapsed)"
+      echo "  phase: $(phase_label "$PHASE") ($((NOW - START_EPOCH))s elapsed)"
       LAST_PHASE="$PHASE"
     fi
     case "$SCAN_STATUS" in
