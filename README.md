@@ -106,3 +106,41 @@ public repository you can reference it directly with
   finished; the findings list request failed (very large result sets can
   exceed the load balancer's 1 MB response cap). Open the console link for
   the full report.
+
+## Blocking merges (opt-in)
+
+Arko is advisory by default — the check never fails. To give it teeth, opt in per repo:
+
+```yaml
+- uses: DevSecAI/arko-scan@v1
+  with:
+    api-token: ${{ secrets.ARKO_API_TOKEN }}
+    fail-on: high        # fail this job on any critical or high finding
+```
+
+| `fail-on` | Job fails when |
+|---|---|
+| `critical` | any critical finding exists |
+| `high` | any critical **or** high |
+| `medium` | any critical, high **or** medium |
+| *(unset)* | never — advisory |
+
+Findings at or above your gate render as `Error` annotations; everything below stays advisory. If findings exist but their severities cannot be fetched, a gated run **fails closed**.
+
+**A red check does not block a merge by itself.** To enforce it, make the job a required status check: repository **Settings → Rulesets** (or Branches → protection rules) → *Require status checks to pass* → add the job (e.g. `arko`). That decision stays in your hands, on your repo.
+
+## Getting the most out of it
+
+- **Scan pull requests** — trigger on `pull_request` as well as `push` so findings annotate the diff before merge.
+- **Custom logic via outputs** — gate on your own rules without waiting for us:
+  ```yaml
+  - uses: DevSecAI/arko-scan@v1
+    id: arko
+    with:
+      api-token: ${{ secrets.ARKO_API_TOKEN }}
+  - name: Block only on criticals in this service
+    if: steps.arko.outputs.critical-count != '0'
+    run: exit 1
+  ```
+- **Trim the archive** — pass `exclude` patterns (one per line, `zip -x` syntax) for large generated directories; smaller uploads scan faster.
+- **Every scan lands in the Arko console** — findings, scoring and the decision trail are in your workspace at https://app.arko.devsecai.io, alongside your IDE and repository scans.
