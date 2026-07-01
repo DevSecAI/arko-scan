@@ -1,0 +1,101 @@
+name: 'Arko Scan'
+description: >-
+  Upload the checked-out source to Arko, run a full security build scan,
+  annotate findings on the changed code, and publish a step summary.
+  Advisory by default — set fail-on to gate merges.
+author: 'DevSecAI'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  api-token:
+    description: >-
+      Arko API token, sent as the X-Arko-Token header. Create one under
+      Admin → API Access in the Arko console and store it as a repository
+      secret. Preferred over bearer-token.
+    required: false
+    default: ''
+  bearer-token:
+    description: >-
+      Alternative auth: a JWT sent as "Authorization: Bearer <jwt>".
+      Only for setups that do not have an API token yet; api-token wins
+      when both are provided.
+    required: false
+    default: ''
+  api-base:
+    description: 'Arko API base URL.'
+    required: false
+    default: 'https://arko.devsecai.io'
+  project-name:
+    description: >-
+      Project name as it appears in the Arko console. Defaults to the
+      repository name.
+    required: false
+    default: ${{ github.event.repository.name }}
+  branch:
+    description: >-
+      Branch recorded on the scan. Defaults to the PR head branch on
+      pull_request events, otherwise the current ref name.
+    required: false
+    default: ${{ github.head_ref || github.ref_name }}
+  fail-on:
+    description: >-
+      Severity gate. Empty (the default) means ADVISORY — findings never
+      fail the step. Set to critical, high, or medium to exit 1 when
+      findings at or above that severity exist.
+    required: false
+    default: ''
+  max-wait-seconds:
+    description: 'Maximum seconds to wait for the scan to finish.'
+    required: false
+    default: '1200'
+  exclude:
+    description: >-
+      Extra zip exclusion patterns, newline-separated (zip -x syntax,
+      e.g. "docs/*"). .git, node_modules, dist, build, .venv and *.zip
+      are always excluded.
+    required: false
+    default: ''
+
+outputs:
+  scan-id:
+    description: 'The Arko scan id.'
+    value: ${{ steps.scan.outputs.scan-id }}
+  verdict:
+    description: >-
+      passing (no findings at/above the gate, or none at all),
+      advisory (findings found but no fail-on gate set),
+      failing (findings at/above the fail-on gate),
+      error (the scan could not run or finish).
+    value: ${{ steps.scan.outputs.verdict }}
+  critical-count:
+    description: 'Number of critical findings on this scan.'
+    value: ${{ steps.scan.outputs.critical-count }}
+  high-count:
+    description: 'Number of high findings on this scan.'
+    value: ${{ steps.scan.outputs.high-count }}
+  medium-count:
+    description: 'Number of medium findings on this scan.'
+    value: ${{ steps.scan.outputs.medium-count }}
+  low-count:
+    description: 'Number of low findings on this scan.'
+    value: ${{ steps.scan.outputs.low-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Arko scan
+      id: scan
+      shell: bash
+      env:
+        ARKO_API_TOKEN: ${{ inputs.api-token }}
+        ARKO_BEARER_TOKEN: ${{ inputs.bearer-token }}
+        ARKO_API_BASE: ${{ inputs.api-base }}
+        ARKO_PROJECT_NAME: ${{ inputs.project-name }}
+        ARKO_BRANCH: ${{ inputs.branch }}
+        ARKO_FAIL_ON: ${{ inputs.fail-on }}
+        ARKO_MAX_WAIT_SECONDS: ${{ inputs.max-wait-seconds }}
+        ARKO_EXCLUDE: ${{ inputs.exclude }}
+      run: bash "${{ github.action_path }}/scan.sh"
