@@ -439,22 +439,34 @@ if [[ "$FINDINGS_MODE" != "none" ]]; then
     | @tsv' "$FINDINGS_JSON" > "$ROWS_TSV"
 
   while IFS=$'\t' read -r sev title fpath line desc _rec; do
-    level="warning"
-    case "$sev" in critical|high) level="error" ;; esac
-    msg="$(esc_msg "Arko [${sev}] ${title}${desc:+ — ${desc}}")"
-    props=""
+    # GitHub's annotation vocabulary is fixed (error/warning/notice) — use it
+    # honestly: an advisory run failed nothing, so findings render as
+    # warnings/notices; "Error" is reserved for findings that will actually
+    # fail the job under the customer's opt-in fail-on gate.
+    gated=false
+    case "$FAIL_ON" in
+      critical) [[ "$sev" == "critical" ]] && gated=true ;;
+      high)     case "$sev" in critical|high) gated=true ;; esac ;;
+      medium)   case "$sev" in critical|high|medium) gated=true ;; esac ;;
+    esac
+    if [[ "$gated" == true ]]; then
+      level="error"
+    elif [[ "$sev" == "low" ]]; then
+      level="notice"
+    else
+      level="warning"
+    fi
+    sev_upper="$(printf '%s' "$sev" | tr '[:lower:]' '[:upper:]')"
+    msg="$(esc_msg "${sev} · ${title}${desc:+ — ${desc}}")"
+    props="title=$(esc_prop "Arko · ${sev_upper} · ${title}")"
     if [[ -n "$fpath" ]]; then
       rel="$(resolve_path "$fpath")"
-      props="file=$(esc_prop "$rel")"
+      props="${props},file=$(esc_prop "$rel")"
       if [[ -n "$line" && "$line" != "null" && "$line" != "0" ]]; then
         props="${props},line=$(esc_prop "$line")"
       fi
     fi
-    if [[ -n "$props" ]]; then
-      printf '::%s %s::%s\n' "$level" "$props" "$msg"
-    else
-      printf '::%s::%s\n' "$level" "$msg"
-    fi
+    printf '::%s %s::%s\n' "$level" "$props" "$msg"
   done < "$ROWS_TSV"
 fi
 
